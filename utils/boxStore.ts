@@ -12,13 +12,13 @@ export interface Box {
     deadline?: string;
 }
 
+const STORAGE_KEY = 'reboxify_inventory';
+
 export const INITIAL_BOXES: Box[] = [
     { id: 'ESA-012', company: 'MNC-AMZ', status: 'DISPATCHED', uses: 5, condition: 'GOOD' },
     { id: 'ESA-001', company: 'MNC-AMZ', status: 'DELIVERED', uses: 12, condition: 'GOOD', customer_id: 'user@demo.com', deadline: '2024-02-25' },
     { id: 'ESA-055', company: 'MNC-FLK', status: 'EXPORTED', uses: 2, condition: 'NEW' },
 ];
-
-const STORAGE_KEY = 'reboxify_inventory';
 
 export const getInventory = (): Box[] => {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -53,13 +53,12 @@ export const validateAndTransition = (
     let errorMsg = "Invalid transition for your role.";
 
     switch (nextStatus) {
-        case 'EXPORTED': // Admin assigns to Company OR Box loops back from RECEIVED
+        case 'EXPORTED': // Admin assigns OR Company receives back from return loop
             if (role === 'admin' && (box.status === 'CREATED' || box.status === 'RETIRED')) {
                 isValid = true;
-            } else if (role === 'partner' && box.status === 'RECEIVED') {
-                // Loop back logic: If partner marks as RECEIVED, it automatically moves to EXPORTED for the same company
+            } else if (role === 'company' && (box.status === 'RECEIVED' || box.status === 'DELIVERED') && box.company === metadata?.company) {
+                // MNC marks as Received (ready for reuse)
                 isValid = true;
-                metadata = { ...metadata, status: 'EXPORTED' };
             }
             break;
 
@@ -67,7 +66,7 @@ export const validateAndTransition = (
             if (role === 'company' && box.status === 'EXPORTED' && box.company === metadata?.company) {
                 isValid = true;
             } else if (box.status !== 'EXPORTED') {
-                errorMsg = `Box must be in EXPORTED state (currently ${box.status}).`;
+                errorMsg = `Box must be in EXPORTED state to be DISPATCHED (currently ${box.status}).`;
             }
             break;
 
@@ -82,27 +81,26 @@ export const validateAndTransition = (
                 isValid = true;
             }
             break;
+
+        case 'RETIRED':
+            if (role === 'admin' || (role === 'company' && box.company === metadata?.company)) {
+                isValid = true;
+            }
+            break;
     }
 
     if (isValid) {
-        const updatedBox = { ...box, ...metadata, status: nextStatus };
-
-        // Auto-logic for specific transitions
-        if (nextStatus === 'RECEIVED') {
-            updatedBox.uses += 1;
-            // If not damaged, loop back to EXPORTED for the same company
-            if (updatedBox.condition !== 'DAMAGED') {
-                updatedBox.status = 'EXPORTED';
-                updatedBox.customer_id = undefined;
-                updatedBox.deadline = undefined;
-            } else {
-                updatedBox.status = 'RETIRED';
-            }
-        }
+        // Increment uses only when it successfully finishes a journey (MNC receives it back)
+        const updatedBox = {
+            ...box,
+            ...metadata,
+            status: nextStatus,
+            uses: (nextStatus === 'EXPORTED' && box.status === 'RECEIVED') ? box.uses + 1 : box.uses
+        };
 
         inventory[boxIndex] = updatedBox;
         saveInventory(inventory);
-        return { success: true, message: `Success! Status updated to ${updatedBox.status}.`, box: updatedBox };
+        return { success: true, message: `Success! Status updated to ${nextStatus}.`, box: updatedBox };
     }
 
     return { success: false, message: errorMsg };

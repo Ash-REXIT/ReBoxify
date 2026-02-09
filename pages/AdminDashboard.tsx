@@ -125,10 +125,10 @@ const AdminDashboard: React.FC = () => {
                     <td className="px-8 py-5 font-bold font-mono text-emerald-400">{box.id}</td>
                     <td className="px-8 py-5">
                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${box.status === 'CREATED' ? 'bg-slate-700 text-slate-300' :
-                          box.status === 'EXPORTED' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
-                            box.status === 'DISPATCHED' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
-                              box.status === 'DELIVERED' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                                'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        box.status === 'EXPORTED' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                          box.status === 'DISPATCHED' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
+                            box.status === 'DELIVERED' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                              'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         }`}>
                         {box.status}
                       </span>
