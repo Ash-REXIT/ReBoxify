@@ -2,22 +2,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UserIcon, BuildingIcon, TruckIcon, DashboardIcon } from '../components/Icons';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../utils/auth';
 
 export type LoginType = 'user' | 'company' | 'partner' | 'admin';
 
-
 interface LoginPageProps {
   type: LoginType;
-  onLogin: (details: any) => void;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ type, onLogin }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ type }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { login, signup, isLoading } = useAuth();
+
   const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
   const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,8 +43,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ type, onLogin }) => {
     company: {
       title: 'MNC Inventory Login',
       subtitle: 'Manage corporate circular assets',
-      label: 'Admin ID',
-      placeholder: 'MNC-XXXX',
+      label: 'Admin ID / Email',
+      placeholder: 'MNC-XXXX or email',
       color: 'yellow',
       bg: 'bg-yellow-50/50',
       icon: <BuildingIcon />,
@@ -54,8 +55,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ type, onLogin }) => {
     partner: {
       title: 'Delivery Partner App',
       subtitle: 'Scan and track box movements',
-      label: 'Partner ID',
-      placeholder: 'PRT-XXXX',
+      label: 'Partner ID / Email',
+      placeholder: 'PRT-XXXX or email',
       color: 'orange',
       bg: 'bg-orange-50/50',
       icon: <TruckIcon />,
@@ -66,8 +67,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ type, onLogin }) => {
     admin: {
       title: 'Super Admin Access',
       subtitle: 'Global platform control',
-      label: 'Super Admin ID',
-      placeholder: 'SEC-XXXX',
+      label: 'Super Admin ID / Email',
+      placeholder: 'SEC-XXXX or email',
       color: 'slate',
       bg: 'bg-slate-100',
       icon: <DashboardIcon />,
@@ -91,108 +92,90 @@ const LoginPage: React.FC<LoginPageProps> = ({ type, onLogin }) => {
     slate: 'text-slate-900',
   };
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
-    // Simulate network delay
-    setTimeout(() => {
-      let isValid = false;
-      let errorMessage = 'Invalid credentials. Please try again.';
-      let sessionDetails: any = {};
+    const role = type as UserRole;
 
-      if (type === 'user') {
-        if (isSignUp) {
-          const existingUsers = JSON.parse(localStorage.getItem('reboxify_users') || '{}');
-          if (existingUsers[identity]) {
-            errorMessage = 'Email already registered.';
-          } else {
-            existingUsers[identity] = password;
-            localStorage.setItem('reboxify_users', JSON.stringify(existingUsers));
-            isValid = true;
-            sessionDetails = { email: identity };
-          }
+    if (isSignUp) {
+      const result = await signup(identity, password);
+      if (result.success) {
+        // Automatically link to login after signup
+        const loginResult = await login(identity, password, role);
+        if (loginResult.success) {
+          navigate(config.redirect);
         } else {
-          const existingUsers = JSON.parse(localStorage.getItem('reboxify_users') || '{}');
-          if (existingUsers[identity] === password || (identity === 'user@demo.com' && password === '123')) {
-            isValid = true;
-            sessionDetails = { email: identity };
-          }
+          setError('Account created, but login failed. Please try manual login.');
+          setIsSignUp(false);
         }
-      } else if (type === 'admin') {
-        isValid = (identity === 'super-admin' && password === '123');
-        if (isValid) sessionDetails = { id: identity };
-        errorMessage = 'Invalid Super Admin ID.';
-      } else if (type === 'company') {
-        // Amazon demo
-        if (identity === 'MNC-AMZ' && password === '123') {
-          isValid = true;
-          sessionDetails = { companyId: 'MNC-AMZ', id: identity };
-        } else if (identity === 'MNC-FLK' && password === '123') {
-          isValid = true;
-          sessionDetails = { companyId: 'MNC-FLK', id: identity };
-        }
-        errorMessage = 'Invalid Admin ID for assigned MNC.';
-      } else if (type === 'partner') {
-        isValid = (identity === 'DLP-001' && password === '123');
-        if (isValid) sessionDetails = { id: identity, zone: 'North-East' };
-        errorMessage = 'Invalid Partner ID.';
+      } else {
+        setError(result.error || 'Signup failed.');
       }
-
-      setLoading(false);
-
-      if (isValid) {
-        onLogin(sessionDetails);
+    } else {
+      const result = await login(identity, password, role);
+      if (result.success) {
         navigate(config.redirect);
       } else {
-        setError(errorMessage);
+        setError(result.error || 'Login failed.');
       }
-    }, 800);
+    }
+  };
+
+  const bgMap: Record<LoginType, string> = {
+    user: 'bg-emerald-50/30 dark:bg-[#020617]',
+    company: 'bg-indigo-50/30 dark:bg-[#020617]',
+    partner: 'bg-orange-50/30 dark:bg-[#020617]',
+    admin: 'bg-slate-50 dark:bg-[#020617]',
   };
 
   return (
-    <div className={`min-h-screen ${config.bg} flex items-center justify-center p-6 transition-all duration-500`}>
-      <div className="max-w-md w-full">
+    <div className={`min-h-screen ${bgMap[type]} flex items-center justify-center p-6 transition-colors duration-700 relative overflow-hidden`}>
+      {/* Decorative Background Elements */}
+      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+      <div className="max-w-md w-full relative z-10">
         {/* Navigation Link back */}
         <div className="text-center mb-8">
           <div
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 cursor-pointer mb-6 group"
+            className="inline-flex items-center gap-2 cursor-pointer mb-8 group"
           >
-            <div className={`w-10 h-10 ${colorMap[config.color].split(' ')[0]} rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg transition-transform group-hover:scale-110`}>R</div>
-            <span className="text-2xl font-bold tracking-tight text-slate-800">ReBoxify</span>
+            <div className={`w-12 h-12 ${colorMap[config.color].split(' ')[0]} rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl transition-transform group-hover:rotate-6`}>R</div>
+            <span className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white transition-colors">ReBoxify</span>
           </div>
-          <div className={`w-12 h-12 bg-white ${textMap[config.color]} mx-auto mb-4 rounded-2xl flex items-center justify-center shadow-md`}>
+
+          <div className={`w-14 h-14 bg-white dark:bg-slate-800 ${textMap[config.color]} mx-auto mb-4 rounded-[1.2rem] flex items-center justify-center shadow-xl border border-white/10 dark:border-white/5`}>
             {config.icon}
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter transition-colors">
             {isSignUp ? 'Create Account' : config.title}
           </h1>
-          <p className="text-slate-500 mt-2 font-medium">
+          <p className="text-slate-500 dark:text-slate-400 mt-3 font-bold uppercase text-[10px] tracking-[0.2em] transition-colors">
             {config.subtitle}
           </p>
         </div>
 
         {/* Auth Card */}
-        <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-900/5 p-8 border border-slate-100">
-          <form onSubmit={handleAuth} className="space-y-5">
+        <div className="bg-white/80 dark:bg-slate-900/50 backdrop-blur-3xl rounded-[3rem] shadow-2xl shadow-black/[0.05] p-10 border border-white/20 dark:border-white/5 transition-all">
+          <form onSubmit={handleAuth} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">{config.label}</label>
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">{config.label}</label>
               <input
-                type={type === 'user' ? 'email' : 'text'}
+                type={(type === 'user' || isSignUp) ? 'email' : 'text'}
                 required
                 value={identity}
                 onChange={(e) => setIdentity(e.target.value)}
                 placeholder={config.placeholder}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all text-slate-800"
+                className="w-full px-6 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/10 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
 
             <div className="space-y-2">
               <div className="flex justify-between items-center ml-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Password</label>
-                {!isSignUp && <a href="#" className={`text-xs font-bold ${textMap[config.color]} hover:opacity-80`}>Forgot?</a>}
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Security Credentials</label>
+                {!isSignUp && <a href="#" className={`text-[10px] font-black uppercase tracking-widest ${textMap[config.color]} hover:opacity-80`}>Forgot?</a>}
               </div>
               <input
                 type="password"
@@ -200,49 +183,49 @@ const LoginPage: React.FC<LoginPageProps> = ({ type, onLogin }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all text-slate-800"
+                className="w-full px-6 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/10 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium text-center">
+              <div className="p-4 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-widest text-center">
                 {error}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={loading}
-              className={`w-full py-4 ${colorMap[config.color]} text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-4 ${loading ? 'opacity-70 cursor-not-allowed' : 'active:scale-[0.98]'
+              disabled={isLoading}
+              className={`w-full py-5 ${colorMap[config.color]} text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 mt-6 ${isLoading ? 'opacity-70 cursor-not-allowed' : 'active:scale-[0.98]'
                 }`}
             >
-              {loading ? (
+              {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
-                isSignUp ? 'Sign Up' : 'Login'
+                isSignUp ? 'Establish Account' : 'Authenticate'
               )}
             </button>
           </form>
 
           {config.allowSignup && (
-            <div className="mt-8 pt-8 border-t border-slate-50 text-center">
-              <p className="text-sm text-slate-500">
-                {isSignUp ? 'Already have an account?' : "New to the platform?"}{' '}
+            <div className="mt-10 pt-8 border-t border-slate-50 dark:border-white/5 text-center">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-500">
+                {isSignUp ? 'Identity already exists?' : "New to the loop?"}{' '}
                 <button
                   onClick={() => setIsSignUp(!isSignUp)}
-                  className={`font-bold ${textMap[config.color]} hover:opacity-80`}
+                  className={`font-black ${textMap[config.color]} hover:opacity-80 ml-2`}
                 >
-                  {isSignUp ? 'Sign In' : 'Sign Up Now'}
+                  {isSignUp ? 'Sign In' : 'Join Pipeline'}
                 </button>
               </p>
             </div>
           )}
 
           {!config.allowSignup && (
-            <div className="mt-8 pt-8 border-t border-slate-50 text-center">
-              <p className="text-xs text-slate-400 italic">
-                Restricted Access. Credentials managed by Super Admin. <br />
-                <span className="text-slate-300">Support: {config.adminContact}</span>
+            <div className="mt-10 pt-8 border-t border-slate-50 dark:border-white/5 text-center">
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                Restricted Protocol. System keys managed by Root Admin. <br />
+                <span className="text-slate-300 dark:text-slate-700 mt-2 block">Governance Code: {config.adminContact}</span>
               </p>
             </div>
           )}
