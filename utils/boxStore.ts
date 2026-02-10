@@ -11,6 +11,8 @@ export interface Box {
     customer_id?: string;
     deadline?: string;
     createdAt?: string; // ISO string for ESG time-based metrics
+    returnRequested?: boolean;
+    returnDate?: string;
 }
 
 /**
@@ -164,10 +166,16 @@ export const validateAndTransition = (
             const deadlineDate = new Date();
             deadlineDate.setDate(deadlineDate.getDate() + 14);
             updatedBox.deadline = deadlineDate.toISOString();
+
+            // Ensure customer_id is set if provided in metadata
+            if (metadata?.customer_id) {
+                updatedBox.customer_id = metadata.customer_id;
+            }
         }
 
-        // Clear customer link and deadline when possession ends (anything except DELIVERED)
-        if (nextStatus !== 'DELIVERED') {
+        // Clear customer link and deadline when possession ends (anything except DELIVERED and RECEIVED)
+        // Kept for RECEIVED so users can still see history/issues until MNC resets it
+        if (nextStatus !== 'DELIVERED' && nextStatus !== 'RECEIVED') {
             delete updatedBox.customer_id;
             delete updatedBox.deadline;
         }
@@ -182,6 +190,25 @@ export const validateAndTransition = (
     }
 
     return { success: false, message: errorMsg };
+};
+
+export const scheduleReturn = (boxId: string): { success: boolean, message: string } => {
+    const inventory = getInventory();
+    const boxIndex = inventory.findIndex(b => b.id === boxId);
+
+    if (boxIndex === -1) return { success: false, message: "Box not found" };
+
+    const box = inventory[boxIndex];
+    if (box.status !== 'DELIVERED') return { success: false, message: "Box is not eligible for return (must be DELIVERED)" };
+
+    inventory[boxIndex] = {
+        ...box,
+        returnRequested: true,
+        returnDate: new Date().toISOString()
+    };
+
+    saveInventory(inventory);
+    return { success: true, message: "Return scheduled successfully" };
 };
 
 /**

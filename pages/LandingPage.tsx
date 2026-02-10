@@ -36,10 +36,6 @@ const LandingPage: React.FC = () => {
             <p className="text-xl text-slate-600 dark:text-slate-400 mb-10 leading-relaxed font-medium transition-colors">
               Replace cardboard waste with smart Polypropylene assets. Secured by deposits, optimized by QR, and rewarded with Green Tokens.
             </p>
-            <div className="flex flex-wrap gap-5">
-              <button onClick={() => navigate('/user-login')} className="px-10 py-5 bg-emerald-600 text-white rounded-[1.2rem] font-black text-xs uppercase tracking-widest shadow-2xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all active:scale-95">Get Started</button>
-              <button className="px-10 py-5 bg-white dark:bg-white/5 text-slate-900 dark:text-white rounded-[1.2rem] font-black text-xs uppercase tracking-widest border border-slate-200 dark:border-white/10 hover:bg-slate-50 transition-all active:scale-95">Explore Protocol</button>
-            </div>
           </div>
           <div className="lg:w-1/2 relative">
             <div className="absolute -inset-4 bg-emerald-500/20 blur-2xl rounded-full opacity-50 animate-pulse"></div>
@@ -63,12 +59,12 @@ const LandingPage: React.FC = () => {
               { id: '01', title: 'MNC Branding', desc: 'Brands like Amazon order unique-ID PP boxes. Lasered with permanent QR codes for individual tracking.' },
               { id: '02', title: 'The Eco-Choice', desc: 'Select "Eco-Box" at checkout. Pay a ₹80 refundable deposit. Worker scans QR at dispatch.' },
               { id: '03', title: 'Smart Returns', desc: '14-day return window. Return via next delivery or agent pickup. QR scan confirms the loop.' },
-              { id: '04', title: 'Token Rewards', desc: 'Deposit refunded instantly + Green Tokens awarded. Used boxes are cleaned or recycled.' }
+              { id: '04', title: 'Token Rewards', desc: 'Deposit refunded instantly + Green Tokens awarded. Used boxes are cleaned or recycled' }
             ].map((step, i) => (
-              <div key={i} className="p-10 glass-effect rounded-[3rem] group hover:border-emerald-500/50 transition-all duration-500">
-                <div className="w-14 h-14 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-8 font-black text-xl group-hover:scale-110 transition-transform">{step.id}</div>
-                <h3 className="font-black text-2xl mb-4 tracking-tight text-slate-900 dark:text-white transition-colors">{step.title}</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed font-medium transition-colors">{step.desc}</p>
+              <div key={i} className="aspect-square p-10 bg-white/50 dark:bg-white/5 backdrop-blur-sm border border-slate-200 dark:border-white/10 rounded-[2.5rem] group hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 flex flex-col items-center text-center justify-center">
+                <div className="w-14 h-14 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-6 font-black text-xl group-hover:scale-110 transition-transform shadow-lg shadow-emerald-500/10">{step.id}</div>
+                <h3 className="font-black text-xl mb-3 tracking-tight text-slate-900 dark:text-white transition-colors">{step.title}</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-medium transition-colors max-w-[180px]">{step.desc}</p>
               </div>
             ))}
           </div>
@@ -102,7 +98,7 @@ const LandingPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
-                      <button onClick={() => navigate(role.path)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl ${role.color === 'emerald' ? 'bg-emerald-600 text-white shadow-emerald-500/20 hover:bg-emerald-700' :
+                      <button onClick={() => navigate(role.path)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl dark:shadow-none ${role.color === 'emerald' ? 'bg-emerald-600 text-white shadow-emerald-500/20 hover:bg-emerald-700' :
                         role.color === 'indigo' ? 'bg-indigo-600 text-white shadow-indigo-500/20 hover:bg-indigo-700' :
                           'bg-orange-600 text-white shadow-orange-500/20 hover:bg-orange-700'
                         }`}>Login</button>

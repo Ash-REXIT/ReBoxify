@@ -50,11 +50,4 @@ Re-Boxify is a high-fidelity circular logistics platform designed to eliminate s
 Re-Boxify aligns with **UN SDG 12 (Responsible Consumption and Production)** and **SDG 13 (Climate Action)** by automating the circular economy at scale.
 
 ---
-<<<<<<< HEAD
 *Built for a sustainable future.*
-=======
-| **Consumer** | `user@demo.com` | `123` | Blue |
-| **MNC Admin** | `MNC-AMZ` | `123` | Yellow |
-| **Delivery Partner** | `DLP-001` | `123` | Orange |
-| **Super Admin** | `super-admin` | `123` | Emerald |
->>>>>>> e44c048165a35cd6446de30628e17430bcf3953c

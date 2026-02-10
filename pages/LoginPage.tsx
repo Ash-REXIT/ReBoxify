@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { UserIcon, BuildingIcon, TruckIcon, DashboardIcon } from '../components/Icons';
+import { UserIcon, BuildingIcon, TruckIcon, DashboardIcon, EyeIcon, EyeOffIcon } from '../components/Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../utils/auth';
 
@@ -19,6 +19,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ type }) => {
   const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
   const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,10 +80,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ type }) => {
   }[type];
 
   const colorMap: Record<string, string> = {
-    blue: 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 ring-blue-500/20 border-blue-500',
-    yellow: 'bg-amber-500 hover:bg-amber-600 shadow-amber-200 ring-amber-500/20 border-amber-500',
-    orange: 'bg-orange-600 hover:bg-orange-700 shadow-orange-200 ring-orange-500/20 border-orange-500',
-    slate: 'bg-slate-900 hover:bg-black shadow-slate-200 ring-slate-500/20 border-slate-900',
+    blue: 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-none ring-blue-500/20 border-blue-500',
+    yellow: 'bg-amber-500 hover:bg-amber-600 shadow-amber-200 dark:shadow-none ring-amber-500/20 border-amber-500',
+    orange: 'bg-orange-600 hover:bg-orange-700 shadow-orange-200 dark:shadow-none ring-orange-500/20 border-orange-500',
+    slate: 'bg-slate-900 hover:bg-black shadow-slate-200 dark:shadow-none ring-slate-500/20 border-slate-900',
   };
 
   const textMap: Record<string, string> = {
@@ -177,14 +178,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ type }) => {
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Security Credentials</label>
                 {!isSignUp && <a href="#" className={`text-[10px] font-black uppercase tracking-widest ${textMap[config.color]} hover:opacity-80`}>Forgot?</a>}
               </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-6 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/10 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
-              />
+              <div className="relative group/pass">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-6 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/10 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 pr-14"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -202,7 +212,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ type }) => {
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
-                isSignUp ? 'Establish Account' : 'Authenticate'
+                isSignUp ? 'Create Account' : 'Authenticate'
               )}
             </button>
           </form>
@@ -215,7 +225,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ type }) => {
                   onClick={() => setIsSignUp(!isSignUp)}
                   className={`font-black ${textMap[config.color]} hover:opacity-80 ml-2`}
                 >
-                  {isSignUp ? 'Sign In' : 'Join Pipeline'}
+                  {isSignUp ? 'Sign In' : 'Register Now'}
                 </button>
               </p>
             </div>
