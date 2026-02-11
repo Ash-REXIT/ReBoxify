@@ -16,7 +16,7 @@ export interface Session {
 
 class AuthService {
     private SESSION_STORAGE_KEY = 'reboxify_session';
-    private API_URL = 'http://localhost:5000/api/auth';
+    private API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/auth`;
 
     constructor() {
     }

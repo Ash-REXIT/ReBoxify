@@ -14,7 +14,7 @@ export interface Box {
     returnDate?: string;
 }
 
-const API_URL = 'http://localhost:5000/api/boxes';
+const API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/boxes`;
 
 /**
  * Robustly extracts a Box ID from noisy scan data.

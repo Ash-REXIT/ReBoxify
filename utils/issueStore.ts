@@ -13,7 +13,7 @@ export interface Issue {
     createdAt: string;
 }
 
-const API_URL = 'http://localhost:5000/api/issues';
+const API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/issues`;
 
 export const getIssues = async (): Promise<Issue[]> => {
     try {
