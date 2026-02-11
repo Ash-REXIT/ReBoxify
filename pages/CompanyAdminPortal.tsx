@@ -34,7 +34,10 @@ const CompanyAdminPortal: React.FC = () => {
 
     const loadInventory = async () => {
       const inv = await getInventory();
-      setInventory(inv.filter(b => b.company === companyId));
+      console.log('AdminPortal: Loaded Inventory', inv.length, 'User Company:', companyId);
+      const filtered = inv.filter(b => b.company === companyId);
+      console.log('AdminPortal: Filtered Inventory', filtered.length);
+      setInventory(filtered);
     };
     loadInventory();
 
@@ -131,9 +134,11 @@ const CompanyAdminPortal: React.FC = () => {
           }
 
           if (type === 'EXPORTED') {
-            const res = await validateAndTransition(resultId, 'company', 'DISPATCHED', { company: user?.details?.companyId });
+            // Confirm Receipt: Transition from RECEIVED -> EXPORTED
+            const res = await validateAndTransition(resultId, 'company', 'EXPORTED', { company: user?.details?.companyId });
+            console.log('Transition Result:', res);
             if (res.success) {
-              alert(`Box ${resultId} Dispatched successfully!`);
+              alert(`Box ${resultId} marked as Received (Ready for Reuse)!`);
               setInventory(await getInventory());
             } else {
               alert(res.message);
