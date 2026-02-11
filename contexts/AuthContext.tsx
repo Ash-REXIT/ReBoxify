@@ -1,13 +1,12 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authService, Session, UserRole, User } from '../utils/auth';
+import { authService, Session, UserRole } from '../utils/auth';
 
 interface AuthContextType {
     session: Session;
     login: (identifier: string, password: string, role: UserRole) => Promise<{ success: boolean; error?: string }>;
     signup: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
     logout: () => void;
-    awardTokens: (email: string, amount: number) => void;
+    awardTokens: (email: string, amount: number) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -28,10 +27,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const login = async (identifier: string, password: string, role: UserRole) => {
         setIsLoading(true);
-        // Artificial delay for realism
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Artificial delay for realism (optional, but keep it if desired)
+        // await new Promise(resolve => setTimeout(resolve, 800));
 
-        const result = authService.login(identifier, password, role);
+        const result = await authService.login(identifier, password, role);
         if (result.success) {
             setSession(authService.getSession());
         }
@@ -41,9 +40,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const signup = async (email: string, password: string) => {
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // await new Promise(resolve => setTimeout(resolve, 800));
 
-        const result = authService.signup(email, password);
+        const result = await authService.signup(email, password);
         setIsLoading(false);
         return result;
     };
@@ -53,8 +52,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSession({ isAuthenticated: false, user: null });
     };
 
-    const awardTokens = (email: string, amount: number) => {
-        authService.awardTokens(email, amount);
+    const awardTokens = async (email: string, amount: number) => {
+        await authService.awardTokens(email, amount);
         setSession(authService.getSession());
     };
 

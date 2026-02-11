@@ -1,4 +1,3 @@
-
 export type BoxStatus = 'CREATED' | 'EXPORTED' | 'DISPATCHED' | 'DELIVERED' | 'RECEIVED' | 'RETIRED';
 export type BoxCondition = 'NEW' | 'GOOD' | 'MINOR_DAMAGE' | 'DAMAGED';
 
@@ -14,6 +13,8 @@ export interface Box {
     returnRequested?: boolean;
     returnDate?: string;
 }
+
+const API_URL = 'http://localhost:5000/api/boxes';
 
 /**
  * Robustly extracts a Box ID from noisy scan data.
@@ -56,56 +57,57 @@ export const getDepositAmount = (box: Box): number => {
     return box.status === 'DELIVERED' ? 80 : 0;
 };
 
-const STORAGE_KEY = 'reboxify_inventory';
-
-export const INITIAL_BOXES: Box[] = [
-    { id: 'ESA-012', company: 'MNC-AMZ', status: 'DISPATCHED', uses: 5, condition: 'GOOD', createdAt: '2025-12-01T00:00:00Z' },
-    { id: 'ESA-001', company: 'MNC-AMZ', status: 'DELIVERED', uses: 12, condition: 'GOOD', customer_id: 'user@demo.com', deadline: '2024-02-25', createdAt: '2025-10-15T00:00:00Z' },
-    { id: 'ESA-055', company: 'MNC-FLK', status: 'EXPORTED', uses: 2, condition: 'NEW', createdAt: '2026-01-10T00:00:00Z' },
-];
-
-export const getInventory = (): Box[] => {
-    const data = localStorage.getItem(STORAGE_KEY);
-    let inventory: Box[] = data ? JSON.parse(data) : INITIAL_BOXES;
-
-    // Auto-Cleanup: Remove any junk boxes that don't match the valid ID pattern
-    const cleaned = inventory.filter(b => isValidBoxId(b.id));
-
-    if (cleaned.length !== inventory.length) {
-        console.warn("ReBoxify: Removed invalid box entries from local storage.");
-        saveInventory(cleaned);
-        return cleaned;
+export const getInventory = async (): Promise<Box[]> => {
+    try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error('Failed to fetch inventory');
+        return await res.json();
+    } catch (err) {
+        console.error(err);
+        return [];
     }
-
-    if (!data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_BOXES));
-        return INITIAL_BOXES;
-    }
-    return inventory;
 };
 
-export const saveInventory = (inventory: Box[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+export const createBox = async (box: Box): Promise<Box> => {
+    const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(box)
+    });
+    if (!res.ok) throw new Error('Failed to create box');
+    return res.json();
 };
 
-export const validateAndTransition = (
+export const updateBox = async (box: Box): Promise<Box> => {
+    const res = await fetch(`${API_URL}/${box.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(box)
+    });
+    if (!res.ok) throw new Error('Failed to update box');
+    return res.json();
+};
+export const deleteBoxApi = async (id: string): Promise<void> => {
+    await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+};
+
+export const validateAndTransition = async (
     boxId: string,
     role: 'admin' | 'company' | 'partner' | 'user',
     nextStatus: BoxStatus,
     metadata?: Partial<Box>
-): { success: boolean; message: string; box?: Box } => {
+): Promise<{ success: boolean; message: string; box?: Box }> => {
     if (!isValidBoxId(boxId)) {
         return { success: false, message: `Invalid Box ID format: "${boxId}". IDs must be like ESA-012.` };
     }
 
-    const inventory = getInventory();
-    const boxIndex = inventory.findIndex(b => b.id === boxId);
+    // Fetch latest inventory to ensure consistency
+    const inventory = await getInventory();
+    const box = inventory.find(b => b.id === boxId);
 
-    if (boxIndex === -1) {
+    if (!box) {
         return { success: false, message: `Box "${boxId}" not found in system. Register it in Super Admin first.` };
     }
-
-    const box = inventory[boxIndex];
 
     if (box.status === nextStatus) {
         return { success: true, message: `Box ${boxId} already in status ${nextStatus}.`, box };
@@ -184,31 +186,37 @@ export const validateAndTransition = (
             updatedBox.createdAt = new Date().toISOString();
         }
 
-        inventory[boxIndex] = updatedBox;
-        saveInventory(inventory);
-        return { success: true, message: `Success! Status updated to ${nextStatus}.`, box: updatedBox };
+        try {
+            const result = await updateBox(updatedBox);
+            return { success: true, message: `Success! Status updated to ${nextStatus}.`, box: result };
+        } catch (e) {
+            return { success: false, message: 'Failed to update box in database.' };
+        }
     }
 
     return { success: false, message: errorMsg };
 };
 
-export const scheduleReturn = (boxId: string): { success: boolean, message: string } => {
-    const inventory = getInventory();
-    const boxIndex = inventory.findIndex(b => b.id === boxId);
+export const scheduleReturn = async (boxId: string): Promise<{ success: boolean, message: string }> => {
+    const inventory = await getInventory();
+    const box = inventory.find(b => b.id === boxId);
 
-    if (boxIndex === -1) return { success: false, message: "Box not found" };
+    if (!box) return { success: false, message: "Box not found" };
 
-    const box = inventory[boxIndex];
     if (box.status !== 'DELIVERED') return { success: false, message: "Box is not eligible for return (must be DELIVERED)" };
 
-    inventory[boxIndex] = {
+    const updatedBox = {
         ...box,
         returnRequested: true,
         returnDate: new Date().toISOString()
     };
 
-    saveInventory(inventory);
-    return { success: true, message: "Return scheduled successfully" };
+    try {
+        await updateBox(updatedBox);
+        return { success: true, message: "Return scheduled successfully" };
+    } catch (e) {
+        return { success: false, message: "Failed to schedule return" };
+    }
 };
 
 /**

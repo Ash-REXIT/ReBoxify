@@ -31,7 +31,12 @@ const CompanyAdminPortal: React.FC = () => {
     }
 
     const companyId = user.details?.companyId;
-    setInventory(getInventory().filter(b => b.company === companyId));
+
+    const loadInventory = async () => {
+      const inv = await getInventory();
+      setInventory(inv.filter(b => b.company === companyId));
+    };
+    loadInventory();
 
     const companyDatabase: Record<string, CompanyData> = {
       'MNC-AMZ': {
@@ -71,8 +76,8 @@ const CompanyAdminPortal: React.FC = () => {
       });
     }
 
-    const refreshIssues = () => {
-      const allIssues = getIssues();
+    const refreshIssues = async () => {
+      const allIssues = await getIssues();
       const companyId = user.details?.companyId;
       setIssues(allIssues.filter(i => i.companyId === companyId));
     };
@@ -107,31 +112,41 @@ const CompanyAdminPortal: React.FC = () => {
       html5QrCode.start(
         { facingMode: "environment" },
         config,
-        (decodedText: string) => {
+        async (decodedText: string) => {
           // Success callback
-          html5QrCode.stop().then(() => {
-            html5QrCode.clear();
-            setScannerInstance(null);
-            setScanning(null);
+          try {
+            await html5QrCode.stop();
+          } catch (e) {
+            console.error("Failed to stop", e);
+          }
+          html5QrCode.clear();
+          setScannerInstance(null);
+          setScanning(null);
 
-            const resultId = extractBoxId(decodedText);
+          const resultId = extractBoxId(decodedText);
 
-            if (!resultId) {
-              alert(`Scan Error: No valid Box ID detected.\nPlease ensure the QR code follows the AAA-000 pattern.`);
-              return;
-            }
+          if (!resultId) {
+            alert(`Scan Error: No valid Box ID detected.\nPlease ensure the QR code follows the AAA-000 pattern.`);
+            return;
+          }
 
-            const res = validateAndTransition(resultId, 'company', type, { company: user?.details?.companyId });
+          if (type === 'EXPORTED') {
+            const res = await validateAndTransition(resultId, 'company', 'DISPATCHED', { company: user?.details?.companyId });
             if (res.success) {
-              setInventory(getInventory().filter(b => b.company === user?.details?.companyId));
+              alert(`Box ${resultId} Dispatched successfully!`);
+              setInventory(await getInventory());
+            } else {
+              alert(res.message);
+            }
+          } else {
+            const res = await validateAndTransition(resultId, 'company', type, { company: user?.details?.companyId });
+            if (res.success) {
+              setInventory(await getInventory());
               alert(res.message);
             } else {
               alert(res.message);
             }
-          }).catch((err: any) => {
-            console.error("Failed to stop scanner", err);
-            setScanning(null);
-          });
+          }
         },
         (errorMessage: string) => {
           // parse error, ignore it.
@@ -324,12 +339,13 @@ const CompanyAdminPortal: React.FC = () => {
                 className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-mono"
               />
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!manualId.trim()) return;
                   const cleanId = extractBoxId(manualId);
-                  const res = validateAndTransition(cleanId, 'company', scanning || 'EXPORTED', { company: user?.details?.companyId });
+                  const res = await validateAndTransition(cleanId, 'company', scanning || 'EXPORTED', { company: user?.details?.companyId });
                   if (res.success) {
-                    setInventory(getInventory().filter(b => b.company === user?.details?.companyId));
+                    const inv = await getInventory();
+                    setInventory(inv.filter(b => b.company === user?.details?.companyId));
                     alert(res.message);
                     setScanning(null);
                     setManualId('');
@@ -474,9 +490,10 @@ const CompanyAdminPortal: React.FC = () => {
                         <div className="flex items-center gap-4">
                           <select
                             value={issue.status}
-                            onChange={(e) => {
-                              updateIssueStatus(issue.issueId, e.target.value as IssueStatus);
-                              setIssues(getIssues().filter(i => i.companyId === user?.details?.companyId));
+                            onChange={async (e) => {
+                              await updateIssueStatus(issue.issueId, e.target.value as IssueStatus);
+                              const allIssues = await getIssues();
+                              setIssues(allIssues.filter(i => i.companyId === user?.details?.companyId));
                             }}
                             className="px-6 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl text-[9px] font-black outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
                           >
@@ -485,10 +502,11 @@ const CompanyAdminPortal: React.FC = () => {
                             <option value="RESOLVED">RESOLVED</option>
                           </select>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (window.confirm("Permanently archive this event?")) {
-                                deleteIssue(issue.issueId);
-                                setIssues(getIssues().filter(i => i.companyId === user?.details?.companyId));
+                                await deleteIssue(issue.issueId);
+                                const allIssues = await getIssues();
+                                setIssues(allIssues.filter(i => i.companyId === user?.details?.companyId));
                               }
                             }}
                             className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all active:scale-90 shadow-lg shadow-rose-500/5"

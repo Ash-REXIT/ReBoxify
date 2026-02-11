@@ -44,7 +44,7 @@ const DeliveryPartnerApp: React.FC = () => {
   const [viewMode, setViewMode] = useState<'dashboard' | 'map'>('dashboard');
 
   // Link to the Real Backend Inventory
-  const [inventory, setInventory] = useState<Box[]>(getInventory());
+  const [inventory, setInventory] = useState<Box[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
 
   const [conditionPending, setConditionPending] = useState<{ id: string, type: string } | null>(null);
@@ -72,26 +72,29 @@ const DeliveryPartnerApp: React.FC = () => {
       return;
     }
     // Generate tasks based on real inventory state
-    const currentInv = getInventory();
-    const activeTasks = currentInv.filter(b => b.status === 'DISPATCHED' || b.status === 'DELIVERED').map(b => ({
-      id: b.id,
-      addr: 'Demo Address ' + b.id.split('-')[1],
-      type: b.status === 'DISPATCHED' ? 'Delivery' : 'Collection',
-      status: 'pending',
-      day: b.deadline ? Math.ceil((new Date(b.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : undefined,
-      boxToCollect: b.status === 'DELIVERED'
-    }));
-    setTasks(activeTasks);
-    setInventory(currentInv);
+    const loadData = async () => {
+      const currentInv = await getInventory();
+      const activeTasks = currentInv.filter(b => b.status === 'DISPATCHED' || b.status === 'DELIVERED').map(b => ({
+        id: b.id,
+        addr: 'Demo Address ' + b.id.split('-')[1],
+        type: b.status === 'DISPATCHED' ? 'Delivery' : 'Collection',
+        status: 'pending',
+        day: b.deadline ? Math.ceil((new Date(b.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : undefined,
+        boxToCollect: b.status === 'DELIVERED'
+      }));
+      setTasks(activeTasks);
+      setInventory(currentInv);
+    };
+    loadData();
   }, [navigate, session, user]);
 
   if (!session.isAuthenticated || user?.role !== 'partner') return <div className="min-h-screen bg-slate-50 flex items-center justify-center">Authenticating Agent...</div>;
 
-  const handleConditionSubmit = (condition: 'GOOD' | 'MINOR_DAMAGE' | 'DAMAGED') => {
+  const handleConditionSubmit = async (condition: 'GOOD' | 'MINOR_DAMAGE' | 'DAMAGED') => {
     if (!conditionPending) return;
 
     const { id, type } = conditionPending;
-    const res = validateAndTransition(id, 'partner', 'RECEIVED', { condition });
+    const res = await validateAndTransition(id, 'partner', 'RECEIVED', { condition });
 
     if (res.success && res.box) {
       // Award Green Tokens based on condition
@@ -100,10 +103,10 @@ const DeliveryPartnerApp: React.FC = () => {
       else if (condition === 'MINOR_DAMAGE') points = 3;
 
       if (points > 0 && res.box.customer_id) {
-        awardTokens(res.box.customer_id, points);
+        await awardTokens(res.box.customer_id, points);
       } else if (condition === 'DAMAGED') {
         // Auto-report issue to Global Anomaly Registry
-        saveIssue({
+        await saveIssue({
           boxId: id,
           customerId: res.box.customer_id || 'Unknown',
           companyId: res.box.company || 'Unknown',
@@ -115,7 +118,7 @@ const DeliveryPartnerApp: React.FC = () => {
       const rewardMsg = points > 0 ? `\nUser rewarded with +${points} Green Tokens!` : '\nNo tokens awarded due to damage. Incident logged.';
       alert(`Collection Successful!${rewardMsg}\nBox ${id} is now in RECEIVED state.`);
 
-      setInventory(getInventory());
+      setInventory(await getInventory());
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'completed' } : t));
     } else {
       alert(`Error: ${res.message}`);
@@ -160,15 +163,18 @@ const DeliveryPartnerApp: React.FC = () => {
             setConditionPending({ id: resultId, type });
           } else {
             // Immediate delivery transition - Assign to Demo User for seamless flow
-            const res = validateAndTransition(resultId, 'partner', 'DELIVERED', { customer_id: 'user@demo.com' });
-            if (res.success) {
-              alert(`Delivery Successful!\nBox ${resultId} handed over to user@demo.com.\n\nTask updated to Collection Phase.`);
-              setInventory(getInventory());
-              // Update local task state: Transition from Delivery -> Collection immediately
-              setTasks(prev => prev.map(t => t.id === resultId ? { ...t, type: 'Collection', status: 'pending', boxToCollect: true } : t));
-            } else {
-              alert(`Error: ${res.message}`);
-            }
+            // Wrap in async function to handle promise
+            (async () => {
+              const res = await validateAndTransition(resultId, 'partner', 'DELIVERED', { customer_id: 'user@demo.com' });
+              if (res.success) {
+                alert(`Delivery Successful!\nBox ${resultId} handed over to user@demo.com.\n\nTask updated to Collection Phase.`);
+                setInventory(await getInventory());
+                // Update local task state: Transition from Delivery -> Collection immediately
+                setTasks(prev => prev.map(t => t.id === resultId ? { ...t, type: 'Collection', status: 'pending', boxToCollect: true } : t));
+              } else {
+                alert(`Error: ${res.message}`);
+              }
+            })();
           }
         },
         () => { }
@@ -247,7 +253,7 @@ const DeliveryPartnerApp: React.FC = () => {
           </div>
 
           <button
-            onClick={() => {
+            onClick={async () => {
               const taskType = scanning.includes('Delivery') ? 'Delivery' : 'Collection';
               const pendingTask = tasks.find(t => t.type === taskType && t.status === 'pending');
               const simId = pendingTask ? pendingTask.id : (taskType === 'Delivery' ? 'ESA-012' : 'ESA-001');
@@ -257,11 +263,11 @@ const DeliveryPartnerApp: React.FC = () => {
               if (nextStatus === 'RECEIVED') {
                 setConditionPending({ id: simId, type: scanning });
               } else {
-                const res = validateAndTransition(simId, 'partner', 'DELIVERED', { customer_id: 'user@demo.com' });
+                const res = await validateAndTransition(simId, 'partner', 'DELIVERED', { customer_id: 'user@demo.com' });
                 if (res.success) {
                   alert(res.message + "\nAssigned to user@demo.com\n\nProceeding to Collection Phase.");
                   setTasks(prev => prev.map(t => t.id === simId ? { ...t, type: 'Collection', status: 'pending', boxToCollect: true } : t));
-                  setInventory(getInventory());
+                  setInventory(await getInventory());
                 } else {
                   alert(res.message);
                 }

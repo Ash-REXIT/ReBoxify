@@ -19,9 +19,9 @@ const UserPortal: React.FC = () => {
   });
 
   useEffect(() => {
-    const refreshData = () => {
+    const refreshData = async () => {
       if (!user) return;
-      const allInventory = getInventory();
+      const allInventory = await getInventory();
       const userLower = user.email?.toLowerCase().trim();
       const inv = allInventory.filter(b =>
         b.status === 'DELIVERED' &&
@@ -29,33 +29,33 @@ const UserPortal: React.FC = () => {
       );
       setActiveBoxes(inv);
 
-      const allIssues = getIssues();
+      const allIssues = await getIssues();
       setUserIssues(allIssues.filter(i => i.customerId === user.id));
     };
 
     refreshData();
-    window.addEventListener('storage', refreshData);
+    // window.addEventListener('storage', refreshData); // Removed as storage event is for localStorage
     const interval = setInterval(refreshData, 3000);
 
     // Auto-resolve simulation for standalone User Portal experience
-    const resolutionInterval = setInterval(() => {
-      const issues = getIssues();
+    const resolutionInterval = setInterval(async () => {
+      const issues = await getIssues();
       let changed = false;
-      issues.forEach(issue => {
+      for (const issue of issues) {
         if (issue.issueType === 'Box damaged on delivery' && issue.status === 'OPEN' && issue.customerId === user.id) {
           // If it's been open for more than 20 seconds, resolve/delete it
           const age = new Date().getTime() - new Date(issue.createdAt).getTime();
           if (age > 20000) {
-            deleteIssue(issue.issueId);
+            await deleteIssue(issue.issueId);
             changed = true;
           }
         }
-      });
+      }
       if (changed) refreshData();
     }, 2000);
 
     return () => {
-      window.removeEventListener('storage', refreshData);
+      // window.removeEventListener('storage', refreshData);
       clearInterval(interval);
       clearInterval(resolutionInterval);
     };

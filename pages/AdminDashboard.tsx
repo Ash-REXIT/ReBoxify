@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BuildingIcon, TruckIcon, QRIcon, PackageIcon, LeafIcon } from '../components/Icons';
-import { getInventory, validateAndTransition, isValidBoxId, getDepositAmount, Box, calculateNetImpact } from '../utils/boxStore';
+import { getInventory, validateAndTransition, isValidBoxId, getDepositAmount, Box, calculateNetImpact, createBox as createBoxApi, deleteBoxApi } from '../utils/boxStore';
 import { useAuth } from '../contexts/AuthContext';
 import { getIssues, updateIssueStatus, deleteIssue, Issue, IssueStatus } from '../utils/issueStore';
 
@@ -13,7 +13,6 @@ const AdminDashboard: React.FC = () => {
   const [newBoxId, setNewBoxId] = useState('');
   const [issues, setIssues] = useState<Issue[]>([]);
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
-
   useEffect(() => {
     if (!session.isAuthenticated || user?.role !== 'admin') {
       navigate('/admin-login');
@@ -21,14 +20,18 @@ const AdminDashboard: React.FC = () => {
     }
 
     // Initial load
-    setInventory(getInventory());
-    setIssues(getIssues());
+    const loadData = async () => {
+      setInventory(await getInventory());
+      setIssues(await getIssues());
+    };
+    loadData();
 
     // Auto-refresh data loop
-    const interval = setInterval(() => {
-      setInventory(getInventory());
+    const interval = setInterval(async () => {
+      const invCallback = await getInventory();
+      setInventory(invCallback);
 
-      const currentIssues = getIssues();
+      const currentIssues = await getIssues();
       setIssues(currentIssues);
 
       // AI Auto-Resolution Logic
@@ -37,16 +40,16 @@ const AdminDashboard: React.FC = () => {
           // Start resolution process for this issue
           setResolvingIds(prev => new Set(prev).add(issue.issueId));
 
-          setTimeout(() => {
+          setTimeout(async () => {
             // After 20s, delete the issue (simulate resolution)
-            deleteIssue(issue.issueId);
+            await deleteIssue(issue.issueId);
             setResolvingIds(prev => {
               const next = new Set(prev);
               next.delete(issue.issueId);
               return next;
             });
             // Trigger re-render/update
-            setIssues(getIssues());
+            setIssues(await getIssues());
           }, 20000);
         }
       });
@@ -68,41 +71,43 @@ const AdminDashboard: React.FC = () => {
     );
   }
 
-  const createBox = () => {
+  const createBox = async () => {
     if (!newBoxId) return;
     const upperId = newBoxId.toUpperCase().trim();
     if (!isValidBoxId(upperId)) {
       alert("Invalid Box ID format. Use AAA-000 (e.g. RBX-101).");
       return;
     }
-    const current = getInventory();
+    const current = await getInventory();
     if (current.find(b => b.id === upperId)) {
       alert("Box ID already exists!");
       return;
     }
+    // We need to call create API.
     const newBox: Box = { id: upperId, company: null, status: 'CREATED', uses: 0, condition: 'NEW' };
-    const updated = [...current, newBox];
-    localStorage.setItem('reboxify_inventory', JSON.stringify(updated));
-    setInventory(updated);
-    setNewBoxId('');
+    try {
+      await createBoxApi(newBox);
+      setInventory(await getInventory());
+      setNewBoxId('');
+    } catch (e) {
+      alert("Failed to create box");
+    }
   };
 
-  const deleteBox = (id: string) => {
+  const deleteBox = async (id: string) => {
     if (!window.confirm(`Permanently delete box ${id}?`)) return;
-    const updated = getInventory().filter(b => b.id !== id);
-    localStorage.setItem('reboxify_inventory', JSON.stringify(updated));
-    setInventory(updated);
+    await deleteBoxApi(id);
+    setInventory(await getInventory());
   };
 
-  const assignToMNC = (id: string, companyId: string) => {
-    const res = validateAndTransition(id, 'admin', 'EXPORTED', { company: companyId });
+  const assignToMNC = async (id: string, companyId: string) => {
+    const res = await validateAndTransition(id, 'admin', 'EXPORTED', { company: companyId });
     if (res.success) {
-      setInventory(getInventory());
+      setInventory(await getInventory());
     } else {
       alert(res.message);
     }
   };
-
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] font-sans text-slate-900 dark:text-slate-100 transition-colors duration-500">
       {/* Top Header Section */}

@@ -1,10 +1,8 @@
-
 export type UserRole = 'user' | 'company' | 'partner' | 'admin';
 
 export interface User {
     id: string;
     email: string;
-    passwordHash: string;
     role: UserRole;
     greenTokens: number;
     details?: Record<string, any>;
@@ -12,116 +10,83 @@ export interface User {
 
 export interface Session {
     isAuthenticated: boolean;
-    user: Omit<User, 'passwordHash'> | null;
+    user: User | null;
+    token?: string;
 }
 
 class AuthService {
-    private USER_STORAGE_KEY = 'reboxify_vault_users';
     private SESSION_STORAGE_KEY = 'reboxify_session';
+    private API_URL = 'http://localhost:5000/api/auth';
 
     constructor() {
-        this.initializeDemoUsers();
     }
 
-    private hashPassword(password: string): string {
-        // Simple mock hashing for demo purposes
-        return btoa(password).split('').reverse().join('');
+    public async signup(email: string, password: string, role: UserRole = 'user', details?: any): Promise<{ success: boolean, error?: string }> {
+        try {
+            const res = await fetch(`${this.API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, role, details })
+            });
+            const data = await res.json();
+            if (!res.ok) return { success: false, error: data.message };
+
+            this.createSession(data.user, data.token);
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: 'Network error' };
+        }
     }
 
-    private initializeDemoUsers() {
-        const users = this.getUsers();
-        const demoUsers: User[] = [
-            { id: 'user-001', email: 'user@demo.com', passwordHash: this.hashPassword('password123'), role: 'user', greenTokens: 25 },
-            { id: 'MNC-AMZ', email: 'MNC-AMZ', passwordHash: this.hashPassword('password123'), role: 'company', greenTokens: 0, details: { companyName: 'Amazon', companyId: 'MNC-AMZ' } },
-            { id: 'MNC-FLK', email: 'MNC-FLK', passwordHash: this.hashPassword('password123'), role: 'company', greenTokens: 0, details: { companyName: 'Flipkart', companyId: 'MNC-FLK' } },
-            { id: 'DLP-001', email: 'DLP-001', passwordHash: this.hashPassword('password123'), role: 'partner', greenTokens: 0, details: { zone: 'North-East' } },
-            { id: 'SEC-ADMIN', email: 'super-admin', passwordHash: this.hashPassword('password123'), role: 'admin', greenTokens: 0 },
-        ];
+    public async login(identifier: string, password: string, expectedRole: UserRole): Promise<{ success: boolean, user?: User, error?: string }> {
+        try {
+            const res = await fetch(`${this.API_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: identifier, password }) // backend expects email
+            });
+            const data = await res.json();
 
-        // Ensure all demo users exist and are up to date
-        demoUsers.forEach(u => {
-            if (!users[u.email] || u.id.startsWith('MNC') || u.id.startsWith('DLP') || u.id === 'SEC-ADMIN') {
-                users[u.email] = u;
+            if (!res.ok) return { success: false, error: data.message };
+
+            if (data.user.role !== expectedRole && expectedRole !== 'admin') {
+                // Admin login page might check role separately, but here we enforce strict role if needed.
+                // The original code passed 'expectedRole'. 
+                if (data.user.role !== expectedRole) {
+                    return { success: false, error: `Invalid access for role: ${expectedRole}` };
+                }
             }
-        });
-        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(users));
-    }
 
-    private getUsers(): Record<string, User> {
-        const data = localStorage.getItem(this.USER_STORAGE_KEY);
-        return data ? JSON.parse(data) : {};
-    }
-
-    private saveUser(user: User) {
-        const users = this.getUsers();
-        users[user.email] = user;
-        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(users));
-    }
-
-    public signup(email: string, password: string, role: UserRole = 'user'): { success: boolean, error?: string } {
-        const users = this.getUsers();
-        if (users[email]) {
-            return { success: false, error: 'Email already registered.' };
+            this.createSession(data.user, data.token);
+            return { success: true, user: data.user };
+        } catch (e) {
+            return { success: false, error: 'Network error' };
         }
-
-        const newUser: User = {
-            id: `USR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-            email,
-            passwordHash: this.hashPassword(password),
-            role,
-            greenTokens: 0
-        };
-
-        this.saveUser(newUser);
-        return { success: true };
     }
 
-    public login(identifier: string, password: string, expectedRole: UserRole): { success: boolean, user?: Omit<User, 'passwordHash'>, error?: string } {
-        const users = this.getUsers();
-        const user = users[identifier];
-
-        if (!user) {
-            return { success: false, error: 'Invalid credentials.' };
-        }
-
-        if (user.passwordHash !== this.hashPassword(password)) {
-            return { success: false, error: 'Invalid credentials.' };
-        }
-
-        if (user.role !== expectedRole) {
-            return { success: false, error: `Invalid access for role: ${expectedRole}` };
-        }
-
-        const { passwordHash, ...userWithoutPassword } = user;
-        this.createSession(userWithoutPassword);
-
-        return { success: true, user: userWithoutPassword };
-    }
-
-    private createSession(user: Omit<User, 'passwordHash'>) {
+    private createSession(user: User, token: string) {
         const session: Session = {
             isAuthenticated: true,
-            user
+            user,
+            token
         };
         localStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(session));
     }
 
     public logout() {
         localStorage.removeItem(this.SESSION_STORAGE_KEY);
+        // window.location.href = '/'; // optional
     }
 
-    public awardTokens(email: string, amount: number) {
-        const users = this.getUsers();
-        if (users[email]) {
-            users[email].greenTokens = (users[email].greenTokens || 0) + amount;
-            localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(users));
+    public async awardTokens(email: string, amount: number) {
+        // TODO: Implement API endpoint for awarding tokens
+        console.warn("awardTokens: API endpoint not implemented yet.");
 
-            // If the awarded user is currently logged in, update their session too
-            const currentSession = this.getSession();
-            if (currentSession.user && currentSession.user.email === email) {
-                currentSession.user.greenTokens = users[email].greenTokens;
-                localStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(currentSession));
-            }
+        // Optimistic update for current session
+        const session = this.getSession();
+        if (session.user && session.user.email === email) {
+            session.user.greenTokens = (session.user.greenTokens || 0) + amount;
+            localStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(session));
             return true;
         }
         return false;
